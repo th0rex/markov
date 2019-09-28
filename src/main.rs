@@ -54,14 +54,9 @@ impl EventHandler for Handler {
 
                 let maybe_start = x.find(' ');
 
-                let mut s = gen!(markov, maybe_start, x);
-                let mut i = 0;
-                while i < 100 && (s.trim().is_empty() || s.bytes().len() > 2000) {
-                    s = gen!(markov, maybe_start, x);
-                    i += 1;
-                }
+                let s = gen!(markov, maybe_start, x);
 
-                if i == 100 {
+                if s.is_empty() || s.bytes().len() > 2000 {
                     msg.channel_id
                         .say(&ctx.http, "Couldn't generate phrase??")
                         .unwrap();
