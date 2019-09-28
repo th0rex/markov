@@ -30,7 +30,7 @@ impl EventHandler for Handler {
         };
 
         match msg.content.as_str() {
-            "!markov" | "!blockchain" | "!ai" | "!quantum" => {
+            x if x.starts_with("!markov") || x.starts_with("!ai") => {
                 let markov = self.markov.lock().unwrap();
                 let markov = match markov.get(&guild) {
                     Some(x) => x,
@@ -42,9 +42,19 @@ impl EventHandler for Handler {
                     }
                 };
 
-                let mut s = markov.generate_str();
-                while s.trim().is_empty() {
-                    s = markov.generate_str();
+                let maybe_start = x.find(' ');
+
+                let gen = || {
+                    if let Some(i) = maybe_start {
+                        markov.generate_str_from_token(&x[i + 1..])
+                    } else {
+                        markov.generate_str()
+                    }
+                };
+
+                let mut s = gen();
+                while s.trim().is_empty() || s.bytes().len() > 2000 {
+                    s = gen();
                 }
 
                 msg.channel_id.say(&ctx.http, s).unwrap();
