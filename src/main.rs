@@ -6,6 +6,10 @@ use std::{
 
 use hashbrown::HashMap;
 
+use lazy_static::lazy_static;
+
+use regex::Regex;
+
 use serde::{Deserialize, Serialize};
 
 use serenity::{
@@ -24,8 +28,12 @@ use markov::Chain;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-const DEFAULT_SIZE: usize = 10;
+const DEFAULT_SIZE: usize = 30;
 const ORDER: usize = 3;
+
+lazy_static! {
+    static ref URL_REGEX: Regex = Regex::new("(https|http)://[^\\s]+").unwrap();
+}
 
 struct Handler {
     markov: Arc<Mutex<HashMap<GuildId, Chain>>>,
@@ -33,6 +41,7 @@ struct Handler {
 
 fn feed(markov: &mut Chain, msg: &str) {
     let mut v = Vec::with_capacity(20);
+    let msg = URL_REGEX.replace_all(msg, "");
 
     for x in msg.split('.') {
         v.clear();
@@ -124,6 +133,8 @@ impl EventHandler for Handler {
                 for x in x {
                     feed(markov, x.as_str());
                 }
+
+                msg.react(ctx.http, "👍").unwrap();
             }
             x if !(msg.author.bot
                 || x.starts_with('!')

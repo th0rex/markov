@@ -64,7 +64,7 @@ impl Chain {
 
     pub fn generate(&self, max: usize) -> Vec<String> {
         let mut rng = thread_rng();
-        let actual_high = rng.gen_range(1, max);
+        let actual_high = rng.gen_range(3, max);
 
         let mut ret = Vec::with_capacity(actual_high);
 
@@ -77,13 +77,21 @@ impl Chain {
             if i < self.order {
                 curr = match self.single.get(&choice) {
                     Some(x) => x,
-                    None => &self.map[&None],
+                    // None => &self.map[&None],
+                    None => {
+                        ret.push(choice);
+                        return ret;
+                    }
                 }
             } else {
                 let arr = ret[i - self.order..].to_vec();
                 curr = match self.map.get(&Some(arr)) {
                     Some(x) => x,
-                    None => &self.map[&None],
+                    // None => &self.map[&None],
+                    None => {
+                        ret.push(choice);
+                        return ret;
+                    }
                 }
             };
 
