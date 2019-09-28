@@ -15,7 +15,7 @@ use serenity::{
     prelude::*,
 };
 
-const ORDER: usize = 3;
+const ORDER: usize = 2;
 
 struct Handler {
     markov: Arc<Mutex<HashMap<GuildId, Chain<String>>>>,

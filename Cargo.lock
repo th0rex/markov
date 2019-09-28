@@ -615,7 +615,7 @@ dependencies = [
 [[package]]
 name = "markov"
 version = "1.0.2"
-source = "git+https://github.com/th0rex/markov_rs.git?branch=stable#eb49e14718c40f464f5d03ce06a2dc076b585ab9"
+source = "git+https://github.com/th0rex/markov_rs.git?branch=stable#b85d4447e412f31251602826b3df52f2112572d7"
 dependencies = [
  "bincode 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
