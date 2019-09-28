@@ -21,6 +21,16 @@ struct Handler {
     markov: Arc<Mutex<HashMap<GuildId, Chain<String>>>>,
 }
 
+macro_rules! gen {
+    ($m:expr, $s:expr, $x:expr) => {
+        if let Some(i) = $s {
+            $m.generate_str_from_token(&$x[i + 1..])
+        } else {
+            $m.generate_str()
+        }
+    };
+}
+
 impl EventHandler for Handler {
     fn message(&self, ctx: Context, msg: Message) {
         let channel = msg.channel_id;
@@ -44,20 +54,22 @@ impl EventHandler for Handler {
 
                 let maybe_start = x.find(' ');
 
-                let gen = || {
-                    if let Some(i) = maybe_start {
-                        markov.generate_str_from_token(&x[i + 1..])
-                    } else {
-                        markov.generate_str()
-                    }
-                };
+                println!("{:?}", maybe_start);
 
-                let mut s = gen();
-                while s.trim().is_empty() || s.bytes().len() > 2000 {
-                    s = gen();
+                let mut s = gen!(markov, maybe_start, x);
+                let mut i = 0;
+                while i < 100 && (s.trim().is_empty() || s.bytes().len() > 2000) {
+                    s = gen!(markov, maybe_start, x);
+                    i += 1;
                 }
 
-                msg.channel_id.say(&ctx.http, s).unwrap();
+                if i == 100 {
+                    msg.channel_id
+                        .say(&ctx.http, "Couldn't generate phrase??")
+                        .unwrap();
+                } else {
+                    msg.channel_id.say(&ctx.http, s).unwrap();
+                }
             }
             "!exit" | "!save" => {
                 if msg.author.id.0 != 157_149_752_327_143_425 {
