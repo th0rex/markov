@@ -54,8 +54,6 @@ impl EventHandler for Handler {
 
                 let maybe_start = x.find(' ');
 
-                println!("{:?}", maybe_start);
-
                 let mut s = gen!(markov, maybe_start, x);
                 let mut i = 0;
                 while i < 100 && (s.trim().is_empty() || s.bytes().len() > 2000) {
