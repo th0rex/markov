@@ -7,5 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-markov = "1.0.2"
+markov = { branch = "stable", git = "https://github.com/th0rex/markov_rs.git" }
 serenity = { version = "0.7", features = [ "cache", "client", "gateway", "http", "model", "utils", "native_tls_backend" ] }
