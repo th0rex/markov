@@ -1,10 +1,9 @@
 use std::{
-    collections::HashMap,
     env,
     sync::{Arc, Mutex},
 };
 
-use markov::Chain;
+use hashbrown::HashMap;
 
 use serenity::{
     model::{
@@ -15,22 +14,29 @@ use serenity::{
     prelude::*,
 };
 
-// mod markov;
+mod markov;
 
-const ORDER: usize = 2;
+use markov::Chain;
+
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
+const DEFAULT_SIZE: usize = 10;
+const ORDER: usize = 3;
 
 struct Handler {
-    markov: Arc<Mutex<HashMap<GuildId, Chain<String>>>>,
+    markov: Arc<Mutex<HashMap<GuildId, Chain>>>,
 }
 
-macro_rules! gen {
-    ($m:expr, $s:expr, $x:expr) => {
-        if let Some(i) = $s {
-            $m.generate_str_from_token(&$x[i + 1..])
-        } else {
-            $m.generate_str()
-        }
-    };
+fn feed(markov: &mut Chain, msg: &str) {
+    let mut v = Vec::with_capacity(20);
+
+    for x in msg.split('.') {
+        v.clear();
+        v.extend(x.split('.').map(|x| x.to_owned()));
+
+        markov.feed(&v[..]);
+    }
 }
 
 impl EventHandler for Handler {
@@ -58,9 +64,16 @@ impl EventHandler for Handler {
                     }
                 };
 
-                let maybe_start = x.find(' ');
+                let mut size = x
+                    .find(' ')
+                    .and_then(|i| (&x[i + 1..]).parse::<usize>().ok())
+                    .unwrap_or(DEFAULT_SIZE);
 
-                let s = gen!(markov, maybe_start, x);
+                let mut s = markov.generate(size).join(" ");
+                while s.bytes().len() > 2000 {
+                    size /= 2;
+                    s = markov.generate(size).join(" ");
+                }
 
                 if s.is_empty() || s.bytes().len() > 2000 {
                     msg.channel_id
@@ -79,17 +92,27 @@ impl EventHandler for Handler {
 
                 let markov = self.markov.lock().unwrap();
                 for (k, v) in &*markov {
-                    v.save(format!("./data/{}", k.0)).unwrap();
+                    let writer = zstd::Encoder::new(
+                        std::fs::File::create(format!("./data/{}", k.0)).unwrap(),
+                        3,
+                    )
+                    .unwrap()
+                    .auto_finish();
+                    bincode::serialize_into(writer, v).unwrap();
                 }
 
                 msg.react(ctx.http, "👍").unwrap();
             }
-            x if !(msg.author.bot || x.starts_with('!') || x.starts_with(";;")) => {
+            x if !(msg.author.bot
+                || x.starts_with('!')
+                || x.starts_with(";;")
+                || x.starts_with("=tex")) =>
+            {
                 let mut markov = self.markov.lock().unwrap();
                 let markov = markov
                     .entry(guild)
                     .or_insert_with(|| Chain::of_order(ORDER));
-                markov.feed_str(x);
+                feed(markov, x);
             }
             x if x.starts_with("!load") => {
                 if msg.author.id.0 != 157_149_752_327_143_425 {
@@ -131,9 +154,10 @@ impl EventHandler for Handler {
                         if !(msg.author.bot
                             || msg.content.starts_with('!')
                             || msg.content.starts_with(";;")
+                            || msg.content.starts_with("=tex")
                             || msg.content.trim().is_empty())
                         {
-                            markov.feed_str(&msg.content);
+                            feed(markov, &msg.content);
                             x += 1;
                             id = std::cmp::min(id, msg.id);
                             println!("{}, {}", x, id);
@@ -171,7 +195,10 @@ fn main() -> Result<(), std::io::Error> {
                 .unwrap()
                 .parse::<u64>()
                 .unwrap();
-            markov.insert(GuildId(x), Chain::load(entry.path())?);
+
+            let reader = zstd::Decoder::new(std::fs::File::open(entry.path())?)?;
+
+            markov.insert(GuildId(x), bincode::deserialize_from(reader).unwrap());
         }
     }
 
