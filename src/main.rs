@@ -15,6 +15,8 @@ use serenity::{
     prelude::*,
 };
 
+// mod markov;
+
 const ORDER: usize = 2;
 
 struct Handler {
@@ -38,6 +40,10 @@ impl EventHandler for Handler {
             Some(x) => x,
             None => return,
         };
+
+        if msg.author.bot {
+            return;
+        }
 
         match msg.content.as_str() {
             x if x.starts_with("!markov") || x.starts_with("!ai") => {
