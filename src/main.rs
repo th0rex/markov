@@ -15,6 +15,8 @@ use serenity::{
     prelude::*,
 };
 
+const ORDER: usize = 3;
+
 struct Handler {
     markov: Arc<Mutex<HashMap<GuildId, Chain<String>>>>,
 }
@@ -63,7 +65,9 @@ impl EventHandler for Handler {
             }
             x if !(msg.author.bot || x.starts_with('!') || x.starts_with(";;")) => {
                 let mut markov = self.markov.lock().unwrap();
-                let markov = markov.entry(guild).or_insert_with(|| Chain::of_order(2));
+                let markov = markov
+                    .entry(guild)
+                    .or_insert_with(|| Chain::of_order(ORDER));
                 markov.feed_str(x);
             }
             x if x.starts_with("!load") => {
@@ -90,7 +94,9 @@ impl EventHandler for Handler {
 
                 while x < target {
                     let mut markov = self.markov.lock().unwrap();
-                    let markov = markov.entry(guild).or_insert_with(|| Chain::of_order(1));
+                    let markov = markov
+                        .entry(guild)
+                        .or_insert_with(|| Chain::of_order(ORDER));
 
                     let res = channel
                         .messages(ctx.http.clone(), |x| x.before(id).limit(100))
