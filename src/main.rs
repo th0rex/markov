@@ -73,30 +73,50 @@ impl EventHandler for Handler {
                     return;
                 }
 
-                let mut markov = self.markov.lock().unwrap();
-                let markov = markov.entry(guild).or_insert_with(|| Chain::of_order(1));
-
                 let query = msg.content.as_str();
                 let query = &query[query.find(' ').unwrap_or(4) + 1..];
-                let id = if !query.is_empty() {
-                    MessageId(query.parse::<u64>().unwrap())
+                let (mut id, target) = if !query.is_empty() {
+                    if let Some(x) = query.find(' ') {
+                        let target = (&query[..x]).parse::<u64>().unwrap();
+                        let id = (&query[x + 1..]).parse::<u64>().unwrap();
+                        (MessageId(id), target)
+                    } else {
+                        (msg.id, query.parse::<u64>().unwrap())
+                    }
                 } else {
-                    msg.id
+                    (msg.id, 1000)
                 };
+                let mut x = 0;
 
-                for msg in channel
-                    .messages(ctx.http.clone(), |x| x.before(id).limit(100))
-                    .unwrap()
-                {
-                    if !(msg.author.bot
-                        || msg.content.starts_with('!')
-                        || msg.content.starts_with(";;")
-                        || msg.content.trim().is_empty())
-                    {
-                        markov.feed_str(&msg.content);
+                while x < target {
+                    let mut markov = self.markov.lock().unwrap();
+                    let markov = markov.entry(guild).or_insert_with(|| Chain::of_order(1));
+
+                    let res = channel
+                        .messages(ctx.http.clone(), |x| x.before(id).limit(100))
+                        .unwrap();
+
+                    if res.is_empty() {
+                        break;
+                    }
+
+                    for msg in res {
+                        if !(msg.author.bot
+                            || msg.content.starts_with('!')
+                            || msg.content.starts_with(";;")
+                            || msg.content.trim().is_empty())
+                        {
+                            markov.feed_str(&msg.content);
+                            x += 1;
+                            id = std::cmp::min(id, msg.id);
+                            println!("{}, {}", x, id);
+                        }
                     }
                 }
 
+                msg.channel_id
+                    .say(&ctx.http, format!("Continue at {}", id))
+                    .unwrap();
                 msg.react(ctx.http, "👍").unwrap();
             }
             _ => {}
