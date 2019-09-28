@@ -1,9 +1,12 @@
 use std::{
     env,
+    io::{Read, Write},
     sync::{Arc, Mutex},
 };
 
 use hashbrown::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 use serenity::{
     model::{
@@ -33,10 +36,18 @@ fn feed(markov: &mut Chain, msg: &str) {
 
     for x in msg.split('.') {
         v.clear();
-        v.extend(x.split('.').map(|x| x.to_owned()));
+        v.extend(x.split(' ').map(|x| x.to_owned()));
 
         markov.feed(&v[..]);
     }
+}
+
+fn de<T: for<'a> Deserialize<'a>>(r: impl Read) -> T {
+    bincode::deserialize_from(zstd::Decoder::new(r).unwrap()).unwrap()
+}
+
+fn se(w: impl Write, x: &impl Serialize) {
+    bincode::serialize_into(zstd::Encoder::new(w, 3).unwrap().auto_finish(), x).unwrap()
 }
 
 impl EventHandler for Handler {
@@ -92,16 +103,27 @@ impl EventHandler for Handler {
 
                 let markov = self.markov.lock().unwrap();
                 for (k, v) in &*markov {
-                    let writer = zstd::Encoder::new(
-                        std::fs::File::create(format!("./data/{}", k.0)).unwrap(),
-                        3,
-                    )
-                    .unwrap()
-                    .auto_finish();
-                    bincode::serialize_into(writer, v).unwrap();
+                    se(std::fs::File::create(format!("./data/{}", k.0)).unwrap(), v);
                 }
 
                 msg.react(ctx.http, "👍").unwrap();
+            }
+            "!load_raw" => {
+                if msg.author.id.0 != 157_149_752_327_143_425 {
+                    msg.channel_id.say(&ctx.http, "No permissions :)").unwrap();
+                    msg.react(ctx.http, "👎").unwrap();
+                    return;
+                }
+
+                let mut markov = self.markov.lock().unwrap();
+                let markov = markov
+                    .entry(guild)
+                    .or_insert_with(|| Chain::of_order(ORDER));
+
+                let x: Vec<String> = de(std::fs::File::open(format!("./raw/{}", guild.0)).unwrap());
+                for x in x {
+                    feed(markov, x.as_str());
+                }
             }
             x if !(msg.author.bot
                 || x.starts_with('!')
@@ -114,6 +136,7 @@ impl EventHandler for Handler {
                     .or_insert_with(|| Chain::of_order(ORDER));
                 feed(markov, x);
             }
+
             x if x.starts_with("!load") => {
                 if msg.author.id.0 != 157_149_752_327_143_425 {
                     msg.channel_id.say(&ctx.http, "No permissions :)").unwrap();
@@ -136,6 +159,8 @@ impl EventHandler for Handler {
                 };
                 let mut x = 0;
 
+                let mut all = Vec::with_capacity(target as usize);
+
                 while x < target {
                     let mut markov = self.markov.lock().unwrap();
                     let markov = markov
@@ -157,6 +182,7 @@ impl EventHandler for Handler {
                             || msg.content.starts_with("=tex")
                             || msg.content.trim().is_empty())
                         {
+                            all.push(msg.content.clone());
                             feed(markov, &msg.content);
                             x += 1;
                             id = std::cmp::min(id, msg.id);
@@ -164,6 +190,9 @@ impl EventHandler for Handler {
                         }
                     }
                 }
+
+                let f = std::fs::File::create(format!("./raw/{}", guild.0)).unwrap();
+                se(f, &all);
 
                 msg.channel_id
                     .say(&ctx.http, format!("Continue at {}", id))
@@ -196,9 +225,7 @@ fn main() -> Result<(), std::io::Error> {
                 .parse::<u64>()
                 .unwrap();
 
-            let reader = zstd::Decoder::new(std::fs::File::open(entry.path())?)?;
-
-            markov.insert(GuildId(x), bincode::deserialize_from(reader).unwrap());
+            markov.insert(GuildId(x), de(std::fs::File::open(entry.path())?));
         }
     }
 
