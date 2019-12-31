@@ -28,7 +28,7 @@ use markov::Chain;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-const DEFAULT_SIZE: usize = 30;
+const DEFAULT_SIZE: usize = 5;
 const ORDER: usize = 3;
 
 lazy_static! {
@@ -101,6 +101,46 @@ impl EventHandler for Handler {
                         .unwrap();
                 } else {
                     msg.channel_id.say(&ctx.http, s).unwrap();
+                }
+            }
+            "!backup" => {
+                let mut after_msg = 544495565950550016;
+                let from_channel = 485850064485351432;
+                let to_channel = 661619384263114752;
+
+                let http = &ctx.http;
+                let from_channel = http.get_channel(from_channel).unwrap().guild().unwrap();
+                let to_channel = http.get_channel(to_channel).unwrap().guild().unwrap();
+                let from_channel = from_channel.read();
+                let to_channel = to_channel.read();
+
+                loop {
+                    let mut x = from_channel.messages(&ctx, |x| x.after(after_msg)).unwrap();
+                    x.sort_by_key(|x| x.id.0);
+                    for x in &x {
+                        after_msg = std::cmp::max(after_msg, x.id.0);
+                        println!("{} -- {} -- {}", x.id.0, x.attachments.len(), x.content);
+
+                        let attachments = x
+                            .attachments
+                            .iter()
+                            .map(|x| (x.download().unwrap(), x.filename.clone()))
+                            .collect::<Vec<_>>();
+                        to_channel
+                            .send_message(&ctx, |mut f| {
+                                f = f.content(x.content.clone());
+                                for (a, b) in &attachments {
+                                    f = f.add_file((a.as_slice(), b.as_ref()));
+                                }
+                                f
+                            })
+                            .unwrap();
+                        std::thread::sleep_ms(500);
+                    }
+
+                    if x.len() < 50 {
+                        break;
+                    }
                 }
             }
             "!exit" | "!save" => {

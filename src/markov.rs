@@ -70,32 +70,35 @@ impl Chain {
 
         let mut curr = &self.map[&None];
 
-        for i in 0..actual_high {
-            let dist = rand::distributions::WeightedIndex::new(&curr.1).unwrap();
-            let choice = curr.0[dist.sample(&mut rng)].clone();
+        for _ in 0..actual_high {
+            for i in 0..100 {
+                let dist = rand::distributions::WeightedIndex::new(&curr.1).unwrap();
+                let choice = curr.0[dist.sample(&mut rng)].clone();
 
-            if i < self.order {
-                curr = match self.single.get(&choice) {
-                    Some(x) => x,
-                    // None => &self.map[&None],
-                    None => {
-                        ret.push(choice);
-                        return ret;
+                if i < self.order {
+                    curr = match self.single.get(&choice) {
+                        Some(x) => x,
+                        // None => &self.map[&None],
+                        None => {
+                            ret.push(choice);
+                            break;
+                        }
                     }
-                }
-            } else {
-                let arr = ret[i - self.order..].to_vec();
-                curr = match self.map.get(&Some(arr)) {
-                    Some(x) => x,
-                    // None => &self.map[&None],
-                    None => {
-                        ret.push(choice);
-                        return ret;
+                } else {
+                    let arr = ret[i - self.order..].to_vec();
+                    curr = match self.map.get(&Some(arr)) {
+                        Some(x) => x,
+                        // None => &self.map[&None],
+                        None => {
+                            ret.push(choice);
+                            break;
+                        }
                     }
-                }
-            };
+                };
 
-            ret.push(choice);
+                ret.push(choice);
+            }
+            ret.push("\n".to_owned());
         }
 
         ret
